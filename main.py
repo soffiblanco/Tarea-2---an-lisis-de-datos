@@ -7,8 +7,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import stats
 
+# Semilla fija para reproducibilidad global
+np.random.seed(12345)
 
-# 1. GENERADORES DESDE CERO 
+# 1. GENERADORES DESDE CERO
 
 class LCG:
     """Generador de Congruencia Lineal"""
@@ -108,16 +110,13 @@ class RANDU:
     def generate(self, n):
         return [self.random() for _ in range(n)]
 
-
-# 2. PRUEBAS ESTADÍSTICAS Y COMPARACIÓN (INCISOS b, c, d)
+# 2. PRUEBAS ESTADÍSTICAS Y COMPARACIÓN
 
 def run_hypothesis_tests(data, name):
-    """(b) Pruebas de hipótesis: Kolmogorov-Smirnov (Uniformidad) y Autocorrelación Lag-1 (Independencia)"""
-    # 1. Prueba KS
+    """Pruebas de hipótesis: Kolmogorov-Smirnov y Autocorrelación Lag-1"""
     ks_stat, ks_p = stats.kstest(data, 'uniform')
     ks_conclusion = "No se rechaza uniformidad (p > 0.05)." if ks_p > 0.05 else "Se rechaza uniformidad (p <= 0.05)."
     
-    # 2. Autocorrelación Lag-1
     n = len(data)
     mean = sum(data) / n
     var = sum((x - mean)**2 for x in data) / n
@@ -134,22 +133,19 @@ def run_hypothesis_tests(data, name):
     return ks_stat, ks_p, autocorr
 
 def compare_with_standard_libraries(n=100000):
-    """(d) Comparación de Mersenne Twister propio con random y secrets de Python"""
-    print(" (d) COMPARACIÓN: PRNG Propio vs Librerías Estándar (random y secrets)")
+    """Comparación de Mersenne Twister propio con random y secrets de Python"""
+    print("\n--- COMPARACIÓN: PRNG Propio vs Librerías Estándar ---")
     
-    # 1. Mersenne Twister propio
     mt_propio = MersenneTwister32(seed=12345)
     t0 = time.time()
     samples_propio = mt_propio.generate(n)
     t_propio = time.time() - t0
     
-    # 2. Librería random (Mersenne Twister C-optimizado)
     py_random.seed(12345)
     t0 = time.time()
     samples_random = [py_random.random() for _ in range(n)]
     t_random = time.time() - t0
     
-    # 3. Librería secrets (Criptográficamente seguro)
     t0 = time.time()
     samples_secrets = [secrets.randbelow(10**6) / 10**6 for _ in range(n)]
     t_secrets = time.time() - t0
@@ -158,12 +154,10 @@ def compare_with_standard_libraries(n=100000):
     print(f" - MT Propio (Python Puro): {t_propio:.4f} segundos")
     print(f" - random (C-optimizado):    {t_random:.4f} segundos (Speedup: {t_propio/t_random:.2f}x)")
     print(f" - secrets (Seguridad Cripto): {t_secrets:.4f} segundos")
-    print("\nConclusión: 'random' es significativamente más rápido por estar compilado en C.")
-    print("'secrets' es más lento por requerir entropía del sistema operativo para ser seguro.")
 
 def generate_part1_visuals():
-    """Genera (a) Histogramas y (c) Pruebas espectrales 3D"""
-    print("\n--> Generando (a) Histogramas de números normalizados a [0, 1]...")
+    """Genera histogramas y pruebas espectrales 3D"""
+    print("\n--> Generando histogramas de números normalizados a [0, 1]...")
     prngs = {
         'LCG': LCG(),
         'MiddleSquare': MiddleSquare(),
@@ -188,7 +182,7 @@ def generate_part1_visuals():
     plt.savefig("histogramas.png", dpi=300)
     plt.close()
 
-    print("\n--> Generando (c) Pruebas Espectrales 3D (LCG y RANDU)...")
+    print("\n--> Generando Pruebas Espectrales 3D (LCG y RANDU)...")
     for name, gen in [('LCG', LCG()), ('RANDU', RANDU())]:
         seq = gen.generate(6000)
         xs, ys, zs = seq[0::3], seq[1::3], seq[2::3]
@@ -204,8 +198,7 @@ def generate_part1_visuals():
         plt.savefig(f"espectral_{name.lower()}.png", dpi=300)
         plt.close()
 
-
-# 3. MÉTODOS DE MONTE CARLO (PARTE 2 DE LA TAREA)
+# 3. MÉTODOS DE MONTE CARLO
 
 def monte_carlo_1d(f, a, b, N, prng=None):
     u_samples = prng.generate(N) if prng else [py_random.random() for _ in range(N)]
@@ -240,15 +233,60 @@ def volume_hyperball_mc(d, N, prng=None):
     
     return estimate, estimate - 1.96 * std_err, estimate + 1.96 * std_err
 
+def generate_part2_visuals():
+    """Genera gráfica Log-Log y gráfica V_d / 2^d para la memoria de LaTeX"""
+    mt = MersenneTwister32(seed=12345)
+    f_a = lambda x: math.sin(math.pi * x)
+    exact_a = 2.0 / math.pi
+
+    print("\n--> Generando gráfica de convergencia Log-Log...")
+    N_vals = np.logspace(1, 6, 20, dtype=int)
+    errors = []
+    for N in N_vals:
+        est, _, _, _, _ = monte_carlo_1d(f_a, 0, 1, N, mt)
+        errors.append(abs(est - exact_a))
+        
+    plt.figure(figsize=(8, 5))
+    plt.loglog(N_vals, errors, 'o-', label="Error Absoluto |I_hat - I|", color='crimson')
+    plt.loglog(N_vals, 1.0 / np.sqrt(N_vals), '--', label=r"Referencia TLC $\mathcal{O}(N^{-1/2})$", color='black')
+    plt.xlabel("Número de Muestras (N)")
+    plt.ylabel("Error Absoluto")
+    plt.title("Convergencia de Monte Carlo en Escala Log-Log")
+    plt.grid(True, which="both", ls="--")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("convergencia_loglog.png", dpi=300)
+    plt.close()
+
+    print("--> Generando gráfica V_d / 2^d...")
+    ds = np.arange(1, 21)
+    ratios = []
+    for d in ds:
+        v_d = (math.pi**(d/2)) / math.gamma(d/2 + 1)
+        ratios.append(v_d / (2**d))
+        
+    plt.figure(figsize=(8, 5))
+    plt.plot(ds, ratios, 'ro-', linewidth=2)
+    plt.xlabel("Dimensión (d)")
+    plt.ylabel("Fracción del Volumen (V_d / 2^d)")
+    plt.title("Razón de Volumen de la Bola Unitaria respecto al Hipercubo")
+    plt.yscale('log')
+    plt.grid(True, which="both", ls="--")
+    plt.tight_layout()
+    plt.savefig("volumen_ratio.png", dpi=300)
+    plt.close()
+
+# BLOQUE PRINCIPAL DE EJECUCIÓN
+
 if __name__ == "__main__":
-    print(" INICIANDO EJECUCIÓN COMPLETA")
+    print("INICIANDO EJECUCIÓN COMPLETA DE LA TAREA 2")
     
     # Parte 1: PRNGs, Pruebas y Comparativa
     generate_part1_visuals()
     compare_with_standard_libraries()
     
-    # Parte 2: Monte Carlo
-    print(" PARTE 2: SIMULACIONES DE MONTE CARLO")
+    # Parte 2: Métodos de Monte Carlo
+    print("\nPARTE 2: MÉTODOS DE MONTE CARLO")
     mt = MersenneTwister32(seed=12345)
     
     # Integrales 1D
@@ -261,5 +299,8 @@ if __name__ == "__main__":
         v_est, v_low, v_up = volume_hyperball_mc(d, 100000, mt)
         v_exact = (math.pi**(d/2)) / math.gamma(d/2 + 1)
         print(f" d={d:2d} | Est: {v_est:9.5f} | IC 95%: [{v_low:9.5f}, {v_up:9.5f}] | Real: {v_exact:9.5f}")
+
+    # Generar gráficas de la Parte 2
+    generate_part2_visuals()
 
     print("\nPipeline ejecutado de principio a fin sin errores.")
